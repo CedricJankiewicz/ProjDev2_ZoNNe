@@ -1,7 +1,10 @@
 import math
+import os
 import tkinter as tk
 from tkinter import messagebox
 import customtkinter as ctk
+import csv
+from datetime import datetime
 
 BG = "#ffffff"
 BAR = "#f3f3f8"
@@ -144,6 +147,18 @@ class App(ctk.CTk):
         self.slider = NeuronSlider(self.bar)
         self.slider.pack(side="left", padx=30)
 
+        self.save_button = ctk.CTkButton(
+            self.bar, text="save", width=100, height=44, corner_radius=22,
+            fg_color=ACCENT, hover_color=ACCENT_HOVER,
+            font=ctk.CTkFont("Segoe UI", 15, "bold"), command=self.save_points)
+        self.save_button.pack(side="left", padx=(20, 5))
+
+        self.load_button = ctk.CTkButton(
+            self.bar, text="load", width=100, height=44, corner_radius=22,
+            fg_color=ACCENT, hover_color=ACCENT_HOVER,
+            font=ctk.CTkFont("Segoe UI", 15, "bold"), command=self.load_points)
+        self.load_button.pack(side="left", padx=(5, 20))
+        
         self.spinner = Spinner(self.bar)
         self.spinner.pack(side="right", padx=20)
 
@@ -212,3 +227,19 @@ class App(ctk.CTk):
             # TODO: train the neural network here with
             # self.points and self.slider.value neurons
             print(f"{len(self.points)} points, {self.slider.value} neurons")
+    
+    def save_points(self):
+        filename = ctk.filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            initialdir=os.getcwd(),
+            initialfile=f"points_{int(datetime.now().timestamp())}.csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        print(filename)
+    
+    def load_points(self):
+        filename = ctk.filedialog.askopenfilename(
+            filetypes=[('CSV files', '*.csv'), ('All files', '*.*')],
+            initialdir=os.getcwd()
+        )
+        print(filename)

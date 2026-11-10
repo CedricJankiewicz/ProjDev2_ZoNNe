@@ -229,13 +229,30 @@ class App(ctk.CTk):
             print(f"{len(self.points)} points, {self.slider.value} neurons")
     
     def save_points(self):
+        # let users chose the file path
         filename = ctk.filedialog.asksaveasfilename(
             defaultextension=".csv",
             initialdir=os.getcwd(),
             initialfile=f"points_{int(datetime.now().timestamp())}.csv",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
         )
-        print(filename)
+        
+        # format data
+        points = [
+            {
+                "x": x,
+                "y": y,
+                "color": color
+            }
+            for x, y, color, _ in self.points
+        ]
+        
+        # write the file
+        with open(filename, 'w', newline='') as csvfile:
+            fieldnames = ['x', 'y', 'color']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(points)
     
     def load_points(self):
         filename = ctk.filedialog.askopenfilename(

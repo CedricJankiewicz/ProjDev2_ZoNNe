@@ -255,8 +255,24 @@ class App(ctk.CTk):
             writer.writerows(points)
     
     def load_points(self):
+        # let user chose the file
         filename = ctk.filedialog.askopenfilename(
             filetypes=[('CSV files', '*.csv'), ('All files', '*.*')],
             initialdir=os.getcwd()
         )
-        print(filename)
+        
+        # remove all previous points
+        for point in self.points:
+            self.canvas.delete(point[3])
+        
+        self.points.clear()
+        
+        # read the file
+        with open(filename, "r") as f:
+            data = csv.DictReader(f)
+            for row in data:
+                r = POINT_RADIUS
+                item = self.canvas.create_oval(int(row['x']) - r, int(row['y']) - r,
+                                               int(row['x']) + r, int(row['y']) + r,
+                                               fill=row['color'], outline="")
+                self.points.append((int(row['x']), int(row['y']), row['color'], item))

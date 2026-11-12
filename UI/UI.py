@@ -14,43 +14,39 @@ ACCENT_HOVER = "#9279ff"
 INACTIVE = "#e2e2ee"
 RED = "#ff4d6d"
 BLUE = "#4d9bff"
-LABELS = {RED: 0, BLUE: 1}
+COLORS = {0: RED, 1: BLUE}   # label -> color
 POINT_RADIUS = 13
 MARGIN = 6
 MIN_DIST = 2 * POINT_RADIUS + 1
 FORBIDDEN = "#b0b0b8"
 DEBUG = True
 
-
 class ColorSelector(ctk.CTkFrame):
-    """Red / blue circles used to choose the class of the next point."""
+    """Circles used to choose the label (class) of the next point."""
 
-    def __init__(self, parent, colors=(RED, BLUE)):
+    def __init__(self, parent, labels=(0, 1)):
         super().__init__(parent, fg_color="transparent")
-        self.color = colors[0]
+        self.label = labels[0]
         self.circles = {}
 
-        for c in colors:
-            cv = tk.Canvas(self, width=50, height=50, bg=BAR,
-                           highlightthickness=0, cursor="hand2")
+        for label in labels:
+            cv = tk.Canvas(self, width=50, height=50, bg=BAR, highlightthickness=0, cursor="hand2")
             cv.pack(side="left", padx=10)
-            circle_id = cv.create_oval(6, 6, 44, 44, fill=c,
-                                       outline=BAR, width=3)
-            cv.bind("<Button-1>", lambda event, c=c: self.select(c))
-            self.circles[c] = (cv, circle_id)
+            circle_id = cv.create_oval(6, 6, 44, 44, fill=COLORS[label], outline=BAR, width=3)
+            cv.bind("<Button-1>", lambda event, l=label: self.select(l))
+            self.circles[label] = (cv, circle_id)
 
-        self.select(self.color)
+        self.select(self.label)
 
-    def select(self, color):
-        self.color = color
-        for c, (cv, circle_id) in self.circles.items():
-            cv.itemconfig(circle_id, outline=TEXT if c == color else BAR)
-
+    def select(self, label):
+        self.label = label
+        for l, (cv, circle_id) in self.circles.items():
+            cv.itemconfig(circle_id, outline=TEXT if l == label else BAR)
 
 class NeuronSlider(ctk.CTkFrame):
     """Label 'neurons : n' with a slider below it."""
 
-    def __init__(self, parent, min_value=1, max_value=16, default=5):
+    def __init__(self, parent, min_value=1, max_value=16, default=8):
         super().__init__(parent, fg_color="transparent")
         self.text = ctk.StringVar()
         self.label = ctk.CTkLabel(self, textvariable=self.text, text_color=TEXT, font=ctk.CTkFont("Segoe UI", 14))
@@ -113,12 +109,8 @@ class Spinner(tk.Canvas):
 class Point:
     x: float
     y: float
-    color: str
-    item: int   # canvas item id
-
-    @property
-    def label(self):
-        return LABELS[self.color]   # red = 0, blue = 1
+    label: int
+    item: int
 
 class App(ctk.CTk):
     def __init__(self):
@@ -199,7 +191,7 @@ class App(ctk.CTk):
             return
         x, y = self.clamp(event.x, event.y)
         free = self.is_free(x, y)
-        color = self.selector.color if free else FORBIDDEN
+        color = COLORS[self.selector.label] if free else FORBIDDEN
         self.canvas.config(cursor="crosshair" if free else "X_cursor")
         r = POINT_RADIUS
         self.canvas.coords(self.ghost, x - r, y - r, x + r, y + r)
@@ -210,16 +202,16 @@ class App(ctk.CTk):
         x, y = self.clamp(event.x, event.y)
         if not self.is_free(x, y):
             return
-        color = self.selector.color
+        label = self.selector.label
         r = POINT_RADIUS
-        item = self.canvas.create_oval(x - r, y - r, x + r, y + r, fill=color, outline="")
-        p = Point(x, y, color, item)
+        item = self.canvas.create_oval(x - r, y - r, x + r, y + r, fill=COLORS[label], outline="")
+        p = Point(x, y, label, item)
         self.points.append(p)
         self.canvas.tag_raise(self.ghost)
         if DEBUG:
-            print(f"Point added: x={p.x}, y={p.y}, value={p.label}")
+            print(f"Point added: x={p.x}, y={p.y}, value={p.label} \n")
+            print(self.points)
         self.on_motion(event)
-
     def remove_point(self, event):
         """Right click: delete the point under the cursor."""
 

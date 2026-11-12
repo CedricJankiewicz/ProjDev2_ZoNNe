@@ -46,6 +46,7 @@ class ColorSelector(ctk.CTkFrame):
         for l, (cv, circle_id) in self.circles.items():
             cv.itemconfig(circle_id, outline=TEXT if l == label else BAR)
 
+
 class NeuronSlider(ctk.CTkFrame):
     """Label 'neurons : n' with a slider below it."""
 
@@ -258,16 +259,16 @@ class App(ctk.CTk):
         # format data
         points = [
             {
-                "x": x,
-                "y": y,
-                "color": color
+                "x": point.x,
+                "y": point.y,
+                "label": point.label
             }
-            for x, y, color, _ in self.points
+            for point in self.points
         ]
         
         # write the file
         with open(filename, 'w', newline='') as csvfile:
-            fieldnames = ['x', 'y', 'color']
+            fieldnames = ['x', 'y', 'label']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(points)
@@ -281,7 +282,7 @@ class App(ctk.CTk):
         
         # remove all previous points
         for point in self.points:
-            self.canvas.delete(point[3])
+            self.canvas.delete(point.item)
         
         self.points.clear()
         
@@ -292,5 +293,5 @@ class App(ctk.CTk):
                 r = POINT_RADIUS
                 item = self.canvas.create_oval(int(row['x']) - r, int(row['y']) - r,
                                                int(row['x']) + r, int(row['y']) + r,
-                                               fill=row['color'], outline="")
-                self.points.append((int(row['x']), int(row['y']), row['color'], item))
+                                               fill=COLORS[int(row['label'])], outline="")
+                self.points.append(Point(int(row['x']), int(row['y']), int(row['label']), item))

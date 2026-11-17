@@ -18,27 +18,25 @@ ACCENT_HOVER = "#9279ff"
 INACTIVE = "#e2e2ee"
 RED = "#ff4d6d"
 BLUE = "#4d9bff"
-PALE = "#f4f0fa"   # undecided color (value around 0.5)
+PALE = "#f4f0fa"
 COLORS = {0: BLUE, 1: RED}
 POINT_RADIUS = 13
 MARGIN = 6
 MIN_DIST = 2 * POINT_RADIUS + 1
 FORBIDDEN = "#b0b0b8"
-GRID_LINE = "#ececf4"
+GRID_LINE = "#e6e6f4"
 GRID_SIZE = 16
-DEBUG = True
+DEBUG = False
 
 
 def hex_to_rgb(color):
     return tuple(int(color[i:i + 2], 16) for i in (1, 3, 5))
-
 
 def mix(color_a, color_b, t):
     """Blend two '#rrggbb' colors (t=0 -> a, t=1 -> b)."""
     rgb_a, rgb_b = hex_to_rgb(color_a), hex_to_rgb(color_b)
     r, g, b = (round(ca + (cb - ca) * t) for ca, cb in zip(rgb_a, rgb_b))
     return f"#{r:02x}{g:02x}{b:02x}"
-
 
 def value_to_color(value):
     """0 -> blue, 0.5 -> pale (undecided), 1 -> red."""
@@ -133,14 +131,12 @@ class Spinner(tk.Canvas):
         self.step += 1
         self.after(100, self._animate)
 
-
 @dataclass
 class Point:
     x: float
     y: float
     label: int
     item: int
-
 
 class App(ctk.CTk):
     def __init__(self):
@@ -336,7 +332,20 @@ class App(ctk.CTk):
         else:
             self.spinner.start()
             self.start_button.configure(text="stop")
-            # TODO: replace fake_grid with the engine: it must return
+
+            # convert data for neurones
+            inputs = []
+            outputs = []
+            for point in self.points:
+                cx = self.canvas.winfo_width()
+                cy = self.canvas.winfo_height()
+                inputs.append([point.x / cx, point.y / cy])
+                outputs.append(point.label)
+
+            # TODO use neurones
+            print(inputs)
+            print(outputs)
+
             # self.rows x self.cols values between 0 and 1
             self.show_prediction(fake_grid(self.rows, self.cols))
 

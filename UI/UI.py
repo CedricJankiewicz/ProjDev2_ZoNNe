@@ -1,31 +1,51 @@
 import math
-import os
 import tkinter as tk
-from tkinter import messagebox
 import customtkinter as ctk
-import csv
-from datetime import datetime
 from dataclasses import dataclass
+from tkinter import messagebox
+import os
+from datetime import datetime
+from .fake import fake_grid
+from .storage import write_csv, read_csv
 
 BG = "#ffffff"
 BAR = "#f3f3f8"
 CANVAS_BG = "#fafafd"
 CANVAS_BORDER = "#d0d0dc"
-ZONE_LINE = "#dcdce8"
 TEXT = "#2a2a3c"
 ACCENT = "#7c5cff"
 ACCENT_HOVER = "#9279ff"
 INACTIVE = "#e2e2ee"
 RED = "#ff4d6d"
 BLUE = "#4d9bff"
+PALE = "#f4f0fa"   # undecided color (value around 0.5)
 COLORS = {0: BLUE, 1: RED}
 POINT_RADIUS = 13
 MARGIN = 6
 MIN_DIST = 2 * POINT_RADIUS + 1
 FORBIDDEN = "#b0b0b8"
 GRID_LINE = "#ececf4"
-GRID_SIZE = 15
+GRID_SIZE = 16
 DEBUG = True
+
+
+def hex_to_rgb(color):
+    return tuple(int(color[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def mix(color_a, color_b, t):
+    """Blend two '#rrggbb' colors (t=0 -> a, t=1 -> b)."""
+    rgb_a, rgb_b = hex_to_rgb(color_a), hex_to_rgb(color_b)
+    r, g, b = (round(ca + (cb - ca) * t) for ca, cb in zip(rgb_a, rgb_b))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def value_to_color(value):
+    """0 -> blue, 0.5 -> pale (undecided), 1 -> red."""
+    value = min(max(value, 0.0), 1.0)
+    if value < 0.5:
+        return mix(COLORS[0], PALE, value * 2)
+    return mix(PALE, COLORS[1], (value - 0.5) * 2)
 
 class ColorSelector(ctk.CTkFrame):
     """Circles used to choose the label (class) of the next point."""
@@ -76,6 +96,7 @@ class Spinner(tk.Canvas):
     """Loading indicator made of dots that fade around a circle."""
 
     TRAIL = [ACCENT, "#9279ff", "#b3a3ff", "#cfc6ff"]
+
     def __init__(self, parent, size=50, dots=8):
         super().__init__(parent, width=size, height=size, bg=BAR,
                          highlightthickness=0)
@@ -112,6 +133,7 @@ class Spinner(tk.Canvas):
         self.step += 1
         self.after(100, self._animate)
 
+
 @dataclass
 class Point:
     x: float
@@ -119,15 +141,22 @@ class Point:
     label: int
     item: int
 
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__(fg_color=BG)
         self.title("ZoNNe")
-        self.geometry("1500*900")
+        self.geometry("1500x900")
         self.resizable(False, False)
-        self.minsize(1500, 900)
 
         self.points = []
+        self.image_item = None
+        self.image = None
+        self.cursor = "crosshair"
+        self.last_grid = None
+        self.cols = self.rows = 0
+        self.zone_x = self.zone_y = MARGIN
+        self.zone_w = self.zone_h = 0
 
         self.bar = ctk.CTkFrame(self, height=90, corner_radius=0, fg_color=BAR)
         self.bar.pack(side="bottom", fill="x")
@@ -161,7 +190,7 @@ class App(ctk.CTk):
             fg_color=ACCENT, hover_color=ACCENT_HOVER,
             font=ctk.CTkFont("Segoe UI", 15, "bold"), command=self.load_points)
         self.load_button.pack(side="left", padx=(5, 20))
-        
+
         self.spinner = Spinner(self.bar)
         self.spinner.pack(side="right", padx=20)
 
@@ -169,35 +198,66 @@ class App(ctk.CTk):
             fg_color=ACCENT, hover_color=ACCENT_HOVER, font=ctk.CTkFont("Segoe UI", 15, "bold"), command=self.on_start)
         self.start_button.pack(side="right", padx=20)
 
-    def draw_grid(self):
-        """Light grid of small squares in the background."""
+    # ---------- the grid (one rectangle per square) ----------
 
+    def update_zone(self):
+        """Fit a whole number of squares in the canvas and center the zone."""
         w = self.canvas.winfo_width()
         h = self.canvas.winfo_height()
-        self.canvas.delete("grid")
-        for x in range(MARGIN, w, GRID_SIZE):
-            self.canvas.create_line(x, 0, x, h, fill=GRID_LINE, tags="grid")
-        for y in range(MARGIN, h, GRID_SIZE):
-            self.canvas.create_line(0, y, w, y, fill=GRID_LINE, tags="grid")
-        self.canvas.tag_lower("grid")
+        self.cols = max(1, (w - 2 * MARGIN) // GRID_SIZE)
+        self.rows = max(1, (h - 2 * MARGIN) // GRID_SIZE)
+        self.zone_w = self.cols * GRID_SIZE
+        self.zone_h = self.rows * GRID_SIZE
+        self.zone_x = (w - self.zone_w) // 2
+        self.zone_y = (h - self.zone_h) // 2
 
     def draw_zone(self):
-        """Grid + dashed rectangle showing where points can be placed."""
+        """Square grid lines, snapped to whole squares."""
+        self.update_zone()
+        self.canvas.delete("grid", "prediction")
+        self.image_item = None
+        x0, y0 = self.zone_x, self.zone_y
+        x1, y1 = x0 + self.zone_w, y0 + self.zone_h
 
-        self.draw_grid()
-        w = self.canvas.winfo_width()
-        h = self.canvas.winfo_height()
-        self.canvas.delete("zone")
-        self.canvas.create_rectangle(MARGIN, MARGIN, w - MARGIN, h - MARGIN, outline=ZONE_LINE, dash=(4, 4),
-                                     tags="zone")
-        self.canvas.tag_lower("zone")
+        for i in range(self.cols + 1):
+            x = x0 + i * GRID_SIZE
+            self.canvas.create_line(x, y0, x, y1, fill=GRID_LINE, tags="grid")
+        for j in range(self.rows + 1):
+            y = y0 + j * GRID_SIZE
+            self.canvas.create_line(x0, y, x1, y, fill=GRID_LINE, tags="grid")
         self.canvas.tag_lower("grid")
-    def clamp(self, x, y):
-        """Push a position inside the canvas so the whole point is visible."""
 
-        limit = MARGIN + POINT_RADIUS
-        x = min(max(x, limit), self.canvas.winfo_width() - limit)
-        y = min(max(y, limit), self.canvas.winfo_height() - limit)
+        # keep the colors if the last grid has the right size
+        if (self.last_grid and len(self.last_grid) == self.rows
+                and len(self.last_grid[0]) == self.cols):
+            self.show_prediction(self.last_grid)
+
+    def show_prediction(self, grid):
+        """Color every square from grid[row][col] (values between 0 and 1)."""
+        self.last_grid = grid
+
+        # small image: 1 pixel per square, then zoomed to the square size
+        small = tk.PhotoImage(master=self.canvas, width=self.cols, height=self.rows)
+        rows = ["{" + " ".join(value_to_color(v) for v in line) + "}"
+                for line in grid]
+        small.put(" ".join(rows))
+        self.image = small.zoom(GRID_SIZE)
+
+        if self.image_item is None:
+            self.image_item = self.canvas.create_image(
+                self.zone_x, self.zone_y, anchor="nw", image=self.image,
+                tags="prediction")
+            self.canvas.tag_lower(self.image_item)  # under grid lines and points
+        else:
+            self.canvas.itemconfig(self.image_item, image=self.image)
+
+    # ---------- helpers ----------
+
+    def clamp(self, x, y):
+        """Push a position inside the zone so the whole point is visible."""
+        r = POINT_RADIUS
+        x = min(max(x, self.zone_x + r), self.zone_x + self.zone_w - r)
+        y = min(max(y, self.zone_y + r), self.zone_y + self.zone_h - r)
         return x, y
 
     def is_free(self, x, y):
@@ -216,36 +276,48 @@ class App(ctk.CTk):
     def hide_ghost(self):
         self.canvas.itemconfig(self.ghost, state="hidden")
 
+    # ---------- mouse events ----------
+
+    def set_cursor(self, name):
+        """Change the cursor only when it is different (cheaper)."""
+        if name != self.cursor:
+            self.cursor = name
+            self.canvas.config(cursor=name)
+
     def on_motion(self, event):
         """Move the ghost; show an X cursor when no point can be placed."""
 
         if self.point_at(event.x, event.y) is not None:
             self.hide_ghost()
-            self.canvas.config(cursor="X_cursor")
+            self.set_cursor("X_cursor")
             return
         x, y = self.clamp(event.x, event.y)
         free = self.is_free(x, y)
         color = COLORS[self.selector.label] if free else FORBIDDEN
-        self.canvas.config(cursor="crosshair" if free else "X_cursor")
+        self.set_cursor("crosshair" if free else "X_cursor")
         r = POINT_RADIUS
         self.canvas.coords(self.ghost, x - r, y - r, x + r, y + r)
         self.canvas.itemconfig(self.ghost, outline=color, state="normal")
+
+    def create_point(self, x, y, label):
+        """Draw a point on the canvas and store it in self.points."""
+        r = POINT_RADIUS
+        item = self.canvas.create_oval(x - r, y - r, x + r, y + r,
+                                       fill=COLORS[label], outline="")
+        p = Point(x, y, label, item)
+        self.points.append(p)
         self.canvas.tag_raise(self.ghost)
+        return p
 
     def add_point(self, event):
         x, y = self.clamp(event.x, event.y)
         if not self.is_free(x, y):
             return
-        label = self.selector.label
-        r = POINT_RADIUS
-        item = self.canvas.create_oval(x - r, y - r, x + r, y + r, fill=COLORS[label], outline="")
-        p = Point(x, y, label, item)
-        self.points.append(p)
-        self.canvas.tag_raise(self.ghost)
+        p = self.create_point(x, y, self.selector.label)
         if DEBUG:
-            print(f"Point added: x={p.x}, y={p.y}, value={p.label} \n")
-            print(self.points)
+            print(f"Point added: x={p.x}, y={p.y}, value={p.label}")
         self.on_motion(event)
+
     def remove_point(self, event):
         """Right click: delete the point under the cursor."""
 
@@ -255,6 +327,8 @@ class App(ctk.CTk):
             self.points.remove(p)
             self.on_motion(event)
 
+    # ---------- actions ----------
+
     def on_start(self):
         if self.spinner.running:
             self.spinner.stop()
@@ -262,80 +336,43 @@ class App(ctk.CTk):
         else:
             self.spinner.start()
             self.start_button.configure(text="stop")
-            # TODO: train the neural network here with
-            # (p.x, p.y)
-    
+            # TODO: replace fake_grid with the engine: it must return
+            # self.rows x self.cols values between 0 and 1
+            self.show_prediction(fake_grid(self.rows, self.cols))
+
     def save_points(self):
+        filename = ctk.filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            initialdir=os.getcwd(),
+            initialfile=f"points_{int(datetime.now().timestamp())}.csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if not filename:   # dialog cancelled
+            return
         try:
-            # let users chose the file path
-            filename = ctk.filedialog.asksaveasfilename(
-                defaultextension=".csv",
-                initialdir=os.getcwd(),
-                initialfile=f"points_{int(datetime.now().timestamp())}.csv",
-                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
-            )
-            
-            # format data
-            points = [
-                {
-                    "x": point.x,
-                    "y": point.y,
-                    "label": point.label
-                }
-                for point in self.points
-            ]
-            
-            # write the file
-            with open(filename, 'w', newline='') as csvfile:
-                fieldnames = ['x', 'y', 'label']
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(points)
-                
-        except FileNotFoundError:
-            messagebox.showerror("Invalid Path", "Please enter a valid path.")
-    
+            write_csv(filename, [(p.x, p.y, p.label) for p in self.points])
+        except OSError:
+            messagebox.showerror("Invalid Path", "Could not write the file.")
+
     def load_points(self):
+        filename = ctk.filedialog.askopenfilename(
+            filetypes=[('CSV files', '*.csv'), ('All files', '*.*')],
+            initialdir=os.getcwd()
+        )
+        if not filename:   # dialog cancelled
+            return
         try:
-            # let user chose the file
-            filename = ctk.filedialog.askopenfilename(
-                filetypes=[('CSV files', '*.csv'), ('All files', '*.*')],
-                initialdir=os.getcwd()
-            )
-            
-            # read the file
-            with open(filename, "r") as f:
-                data = list(csv.DictReader(f))
-                
-                # check
-                required_fields = {'x', 'y', 'label'}
-                
-                if not all(
-                    required_fields.issubset(item.keys()) and #has all field
-                    all(str(value).lstrip('-').isdigit() for value in item.values()) and #all int
-                    int(item['label']) in COLORS.keys() #valid color
-                    for item in data
-                ):
-                    raise ValueError
-
-                # remove all previous points
-                for point in self.points:
-                    self.canvas.delete(point.item)
-
-                self.points.clear()
-                
-                # place all the points
-                for row in data:
-                    r = POINT_RADIUS
-                    item = self.canvas.create_oval(int(row['x']) - r, int(row['y']) - r,
-                                                   int(row['x']) + r, int(row['y']) + r,
-                                                   fill=COLORS[int(row['label'])], outline="")
-                    self.points.append(Point(int(row['x']), int(row['y']), int(row['label']), item))
-                
-                print(self.points)
-                
+            rows = read_csv(filename, COLORS)
         except FileNotFoundError:
             messagebox.showerror("Invalid Path", "Please enter a valid path.")
-            
+            return
         except ValueError:
             messagebox.showerror("Corrupted File", "The file is corrupted or contains invalid data.")
+            return
+
+        # the file is valid: replace the current points
+        for p in self.points:
+            self.canvas.delete(p.item)
+        self.points.clear()
+        for x, y, label in rows:
+            self.create_point(x, y, label)

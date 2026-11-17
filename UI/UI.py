@@ -18,11 +18,13 @@ ACCENT_HOVER = "#9279ff"
 INACTIVE = "#e2e2ee"
 RED = "#ff4d6d"
 BLUE = "#4d9bff"
-COLORS = {0: RED, 1: BLUE}   # label -> color
+COLORS = {0: BLUE, 1: RED}
 POINT_RADIUS = 13
 MARGIN = 6
 MIN_DIST = 2 * POINT_RADIUS + 1
 FORBIDDEN = "#b0b0b8"
+GRID_LINE = "#ececf4"
+GRID_SIZE = 15
 DEBUG = True
 
 class ColorSelector(ctk.CTkFrame):
@@ -121,8 +123,9 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__(fg_color=BG)
         self.title("ZoNNe")
-        self.geometry("900x600")
-        self.minsize(600, 400)
+        self.geometry("1500*900")
+        self.resizable(False, False)
+        self.minsize(1500, 900)
 
         self.points = []
 
@@ -137,8 +140,8 @@ class App(ctk.CTk):
 
         self.canvas.bind("<Motion>", self.on_motion)
         self.canvas.bind("<Leave>", lambda e: self.hide_ghost())
-        self.canvas.bind("<Button-1>", self.add_point)      # left click
-        self.canvas.bind("<Button-3>", self.remove_point)   # right click
+        self.canvas.bind("<Button-1>", self.add_point)
+        self.canvas.bind("<Button-3>", self.remove_point)
         self.canvas.bind("<Configure>", lambda e: self.draw_zone())
 
         self.selector = ColorSelector(self.bar)
@@ -166,15 +169,29 @@ class App(ctk.CTk):
             fg_color=ACCENT, hover_color=ACCENT_HOVER, font=ctk.CTkFont("Segoe UI", 15, "bold"), command=self.on_start)
         self.start_button.pack(side="right", padx=20)
 
-    def draw_zone(self):
-        """Dashed rectangle showing where points can be placed."""
+    def draw_grid(self):
+        """Light grid of small squares in the background."""
 
         w = self.canvas.winfo_width()
         h = self.canvas.winfo_height()
-        self.canvas.delete("zone")
-        self.canvas.create_rectangle(MARGIN, MARGIN, w - MARGIN, h - MARGIN, outline=ZONE_LINE, dash=(4, 4), tags="zone")
-        self.canvas.tag_lower("zone")
+        self.canvas.delete("grid")
+        for x in range(MARGIN, w, GRID_SIZE):
+            self.canvas.create_line(x, 0, x, h, fill=GRID_LINE, tags="grid")
+        for y in range(MARGIN, h, GRID_SIZE):
+            self.canvas.create_line(0, y, w, y, fill=GRID_LINE, tags="grid")
+        self.canvas.tag_lower("grid")
 
+    def draw_zone(self):
+        """Grid + dashed rectangle showing where points can be placed."""
+
+        self.draw_grid()
+        w = self.canvas.winfo_width()
+        h = self.canvas.winfo_height()
+        self.canvas.delete("zone")
+        self.canvas.create_rectangle(MARGIN, MARGIN, w - MARGIN, h - MARGIN, outline=ZONE_LINE, dash=(4, 4),
+                                     tags="zone")
+        self.canvas.tag_lower("zone")
+        self.canvas.tag_lower("grid")
     def clamp(self, x, y):
         """Push a position inside the canvas so the whole point is visible."""
 

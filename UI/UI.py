@@ -313,7 +313,7 @@ class App(ctk.CTk):
                 if not all(
                     required_fields.issubset(item.keys()) and #has all field
                     all(str(value).lstrip('-').isdigit() for value in item.values()) and #all int
-                    int(item['label']) in COLORS.keys()
+                    int(item['label']) in COLORS.keys() #valid color
                     for item in data
                 ):
                     raise ValueError

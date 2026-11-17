@@ -1,6 +1,10 @@
 import math
+import os
 import tkinter as tk
+from tkinter import messagebox
 import customtkinter as ctk
+import csv
+from datetime import datetime
 from dataclasses import dataclass
 
 BG = "#ffffff"
@@ -44,6 +48,7 @@ class ColorSelector(ctk.CTkFrame):
         self.label = label
         for l, (cv, circle_id) in self.circles.items():
             cv.itemconfig(circle_id, outline=TEXT if l == label else BAR)
+
 
 class NeuronSlider(ctk.CTkFrame):
     """Label 'neurons : n' with a slider below it."""
@@ -145,6 +150,18 @@ class App(ctk.CTk):
         self.slider = NeuronSlider(self.bar)
         self.slider.pack(side="left", padx=30)
 
+        self.save_button = ctk.CTkButton(
+            self.bar, text="save", width=100, height=44, corner_radius=22,
+            fg_color=ACCENT, hover_color=ACCENT_HOVER,
+            font=ctk.CTkFont("Segoe UI", 15, "bold"), command=self.save_points)
+        self.save_button.pack(side="left", padx=(20, 5))
+
+        self.load_button = ctk.CTkButton(
+            self.bar, text="load", width=100, height=44, corner_radius=22,
+            fg_color=ACCENT, hover_color=ACCENT_HOVER,
+            font=ctk.CTkFont("Segoe UI", 15, "bold"), command=self.load_points)
+        self.load_button.pack(side="left", padx=(5, 20))
+        
         self.spinner = Spinner(self.bar)
         self.spinner.pack(side="right", padx=20)
 
@@ -247,3 +264,78 @@ class App(ctk.CTk):
             self.start_button.configure(text="stop")
             # TODO: train the neural network here with
             # (p.x, p.y)
+    
+    def save_points(self):
+        try:
+            # let users chose the file path
+            filename = ctk.filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                initialdir=os.getcwd(),
+                initialfile=f"points_{int(datetime.now().timestamp())}.csv",
+                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+            )
+            
+            # format data
+            points = [
+                {
+                    "x": point.x,
+                    "y": point.y,
+                    "label": point.label
+                }
+                for point in self.points
+            ]
+            
+            # write the file
+            with open(filename, 'w', newline='') as csvfile:
+                fieldnames = ['x', 'y', 'label']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(points)
+                
+        except FileNotFoundError:
+            messagebox.showerror("Invalid Path", "Please enter a valid path.")
+    
+    def load_points(self):
+        try:
+            # let user chose the file
+            filename = ctk.filedialog.askopenfilename(
+                filetypes=[('CSV files', '*.csv'), ('All files', '*.*')],
+                initialdir=os.getcwd()
+            )
+            
+            # read the file
+            with open(filename, "r") as f:
+                data = list(csv.DictReader(f))
+                
+                # check
+                required_fields = {'x', 'y', 'label'}
+                
+                if not all(
+                    required_fields.issubset(item.keys()) and #has all field
+                    all(str(value).lstrip('-').isdigit() for value in item.values()) and #all int
+                    int(item['label']) in COLORS.keys() #valid color
+                    for item in data
+                ):
+                    raise ValueError
+
+                # remove all previous points
+                for point in self.points:
+                    self.canvas.delete(point.item)
+
+                self.points.clear()
+                
+                # place all the points
+                for row in data:
+                    r = POINT_RADIUS
+                    item = self.canvas.create_oval(int(row['x']) - r, int(row['y']) - r,
+                                                   int(row['x']) + r, int(row['y']) + r,
+                                                   fill=COLORS[int(row['label'])], outline="")
+                    self.points.append(Point(int(row['x']), int(row['y']), int(row['label']), item))
+                
+                print(self.points)
+                
+        except FileNotFoundError:
+            messagebox.showerror("Invalid Path", "Please enter a valid path.")
+            
+        except ValueError:
+            messagebox.showerror("Corrupted File", "The file is corrupted or contains invalid data.")

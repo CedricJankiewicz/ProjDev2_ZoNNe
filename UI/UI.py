@@ -1,6 +1,7 @@
 import math
 import os
 import tkinter as tk
+from tkinter import messagebox
 import customtkinter as ctk
 import csv
 from datetime import datetime
@@ -248,50 +249,76 @@ class App(ctk.CTk):
             # (p.x, p.y)
     
     def save_points(self):
-        # let users chose the file path
-        filename = ctk.filedialog.asksaveasfilename(
-            defaultextension=".csv",
-            initialdir=os.getcwd(),
-            initialfile=f"points_{int(datetime.now().timestamp())}.csv",
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
-        )
-        
-        # format data
-        points = [
-            {
-                "x": point.x,
-                "y": point.y,
-                "label": point.label
-            }
-            for point in self.points
-        ]
-        
-        # write the file
-        with open(filename, 'w', newline='') as csvfile:
-            fieldnames = ['x', 'y', 'label']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(points)
+        try:
+            # let users chose the file path
+            filename = ctk.filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                initialdir=os.getcwd(),
+                initialfile=f"points_{int(datetime.now().timestamp())}.csv",
+                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+            )
+            
+            # format data
+            points = [
+                {
+                    "x": point.x,
+                    "y": point.y,
+                    "label": point.label
+                }
+                for point in self.points
+            ]
+            
+            # write the file
+            with open(filename, 'w', newline='') as csvfile:
+                fieldnames = ['x', 'y', 'label']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(points)
+                
+        except FileNotFoundError:
+            messagebox.showerror("Invalid Path", "Please enter a valid path.")
     
     def load_points(self):
-        # let user chose the file
-        filename = ctk.filedialog.askopenfilename(
-            filetypes=[('CSV files', '*.csv'), ('All files', '*.*')],
-            initialdir=os.getcwd()
-        )
-        
-        # remove all previous points
-        for point in self.points:
-            self.canvas.delete(point.item)
-        
-        self.points.clear()
-        
-        # read the file
-        with open(filename, "r") as f:
-            data = csv.DictReader(f)
-            for row in data:
-                r = POINT_RADIUS
-                item = self.canvas.create_oval(int(row['x']) - r, int(row['y']) - r,
-                                               int(row['x']) + r, int(row['y']) + r,
-                                               fill=COLORS[int(row['label'])], outline="")
-                self.points.append(Point(int(row['x']), int(row['y']), int(row['label']), item))
+        try:
+            # let user chose the file
+            filename = ctk.filedialog.askopenfilename(
+                filetypes=[('CSV files', '*.csv'), ('All files', '*.*')],
+                initialdir=os.getcwd()
+            )
+            
+            # read the file
+            with open(filename, "r") as f:
+                data = list(csv.DictReader(f))
+                
+                # check
+                required_fields = {'x', 'y', 'label'}
+                
+                if not all(
+                    required_fields.issubset(item.keys()) and #has all field
+                    all(str(value).lstrip('-').isdigit() for value in item.values()) and #all int
+                    int(item['label']) in COLORS.keys()
+                    for item in data
+                ):
+                    raise ValueError
+
+                # remove all previous points
+                for point in self.points:
+                    self.canvas.delete(point.item)
+
+                self.points.clear()
+                
+                # place all the points
+                for row in data:
+                    r = POINT_RADIUS
+                    item = self.canvas.create_oval(int(row['x']) - r, int(row['y']) - r,
+                                                   int(row['x']) + r, int(row['y']) + r,
+                                                   fill=COLORS[int(row['label'])], outline="")
+                    self.points.append(Point(int(row['x']), int(row['y']), int(row['label']), item))
+                
+                print(self.points)
+                
+        except FileNotFoundError:
+            messagebox.showerror("Invalid Path", "Please enter a valid path.")
+            
+        except ValueError:
+            messagebox.showerror("Corrupted File", "The file is corrupted or contains invalid data.")

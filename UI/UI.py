@@ -175,6 +175,12 @@ class App(ctk.CTk):
         self.slider = NeuronSlider(self.bar)
         self.slider.pack(side="left", padx=30)
 
+        self.clear_button = ctk.CTkButton(
+            self.bar, text="clear", width=100, height=44, corner_radius=22,
+            fg_color=ACCENT, hover_color=ACCENT_HOVER,
+            font=ctk.CTkFont("Segoe UI", 15, "bold"), command=self.clear_points)
+        self.clear_button.pack(side="left", padx=(20, 5))
+
         self.save_button = ctk.CTkButton(
             self.bar, text="save", width=100, height=44, corner_radius=22,
             fg_color=ACCENT, hover_color=ACCENT_HOVER,
@@ -356,7 +362,7 @@ class App(ctk.CTk):
             initialfile=f"points_{int(datetime.now().timestamp())}.csv",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
         )
-        if not filename:   # dialog cancelled
+        if not filename:
             return
         try:
             write_csv(filename, [(p.x, p.y, p.label) for p in self.points])
@@ -368,7 +374,7 @@ class App(ctk.CTk):
             filetypes=[('CSV files', '*.csv'), ('All files', '*.*')],
             initialdir=os.getcwd()
         )
-        if not filename:   # dialog cancelled
+        if not filename:
             return
         try:
             rows = read_csv(filename, COLORS)
@@ -385,3 +391,9 @@ class App(ctk.CTk):
         self.points.clear()
         for x, y, label in rows:
             self.create_point(x, y, label)
+
+    def clear_points(self):
+        """Delete every point from the canvas and from the list."""
+        for p in self.points:
+            self.canvas.delete(p.item)
+        self.points.clear()

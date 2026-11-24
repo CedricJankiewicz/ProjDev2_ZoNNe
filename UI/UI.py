@@ -333,6 +333,8 @@ class App(ctk.CTk):
 
     def add_point(self, event):
         x, y = self.clamp(event.x, event.y)
+        if self.spinner.running:
+            return
         if not self.is_free(x, y):
             return
         p = self.create_point(x, y, self.selector.label)
@@ -344,6 +346,8 @@ class App(ctk.CTk):
         """Right click: delete the point under the cursor."""
 
         p = self.point_at(event.x, event.y)
+        if self.spinner.running:
+            return
         if p is not None:
             self.canvas.delete(p.item)
             self.points.remove(p)

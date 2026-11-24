@@ -355,6 +355,12 @@ class App(ctk.CTk):
         if self.spinner.running:
             self.spinner.stop()
             self.start_button.configure(text="start")
+            
+            #clear prediction
+            self.canvas.delete("prediction")
+            self.image_item = None
+            self.image = None
+            self.last_grid = None
         else:
             self.spinner.start()
             self.start_button.configure(text="stop")

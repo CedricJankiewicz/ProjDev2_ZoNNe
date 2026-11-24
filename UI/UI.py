@@ -418,6 +418,9 @@ class App(ctk.CTk):
             messagebox.showerror("Invalid Path", "Could not write the file.")
 
     def load_points(self):
+        if self.spinner.running:
+            return
+        
         filename = ctk.filedialog.askopenfilename(
             filetypes=[('CSV files', '*.csv'), ('All files', '*.*')],
             initialdir=os.getcwd()
@@ -442,6 +445,9 @@ class App(ctk.CTk):
 
     def clear_points(self):
         """Delete every point from the canvas and from the list."""
+        if self.spinner.running:
+            return
+        
         for p in self.points:
             self.canvas.delete(p.item)
         self.points.clear()

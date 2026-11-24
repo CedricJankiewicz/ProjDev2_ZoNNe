@@ -9,7 +9,6 @@ from datetime import datetime
 from .storage import write_csv, read_csv
 from engine.neuron import train, predict_grid
 
-
 BG = "#ffffff"
 BAR = "#f3f3f8"
 CANVAS_BG = "#fafafd"
@@ -161,6 +160,7 @@ class App(ctk.CTk):
         self.cols = self.rows = 0
         self.zone_x = self.zone_y = MARGIN
         self.zone_w = self.zone_h = 0
+        self.iterations = 1000
 
         self.bar = ctk.CTkFrame(self, height=90, corner_radius=0, fg_color=BAR)
         self.bar.pack(side="bottom", fill="x")
@@ -182,6 +182,17 @@ class App(ctk.CTk):
 
         self.slider = NeuronSlider(self.bar)
         self.slider.pack(side="left", padx=30)
+
+        vcmd = (self.register(self.validate_integer), "%P")
+        self.iterations_entry = ctk.CTkEntry(
+            self.bar, width=110, height=44, corner_radius=22,
+            placeholder_text = "iterations",
+            fg_color=BG, border_color=INACTIVE, text_color=TEXT,
+            font=ctk.CTkFont("Segoe UI", 14),
+            validate="key",
+            validatecommand=vcmd)
+        self.iterations_entry.insert(0, int(self.iterations))
+        self.iterations_entry.pack(side="left", padx=20)
 
         self.clear_button = ctk.CTkButton(
             self.bar, text="clear", width=100, height=44, corner_radius=22,
@@ -340,6 +351,7 @@ class App(ctk.CTk):
         p = self.create_point(x, y, self.selector.label)
         if DEBUG:
             print(f"Point added: x={p.x}, y={p.y}, value={p.label}")
+            print (int(self.iterations_entry.get()),)
         self.on_motion(event)
 
     def remove_point(self, event):
@@ -383,7 +395,7 @@ class App(ctk.CTk):
     def execute_neurons(self, inputs, outputs):
         # train the neuron
         weights, bias = train(
-            200,
+            int(self.iterations_entry.get()),
             inputs,
             outputs
         )
@@ -451,3 +463,6 @@ class App(ctk.CTk):
         for p in self.points:
             self.canvas.delete(p.item)
         self.points.clear()
+
+    def validate_integer(self, value):
+        return value.isdigit() or value == ""

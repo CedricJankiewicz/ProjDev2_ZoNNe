@@ -26,6 +26,7 @@ MIN_DIST = 2 * POINT_RADIUS + 1
 FORBIDDEN = "#b0b0b8"
 GRID_LINE = "#e6e6f4"
 GRID_SIZE = 16
+POINT_OUTLINE = "#000000"
 DEBUG = False
 
 
@@ -299,7 +300,7 @@ class App(ctk.CTk):
         """Draw a point on the canvas and store it in self.points."""
         r = POINT_RADIUS
         item = self.canvas.create_oval(x - r, y - r, x + r, y + r,
-                                       fill=COLORS[label], outline="")
+                                       fill=COLORS[label], outline=POINT_OUTLINE)
         p = Point(x, y, label, item)
         self.points.append(p)
         self.canvas.tag_raise(self.ghost)

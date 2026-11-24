@@ -28,6 +28,7 @@ MIN_DIST = 2 * POINT_RADIUS + 1
 FORBIDDEN = "#b0b0b8"
 GRID_LINE = "#e6e6f4"
 GRID_SIZE = 16
+POINT_OUTLINE = "#000000"
 DEBUG = False
 
 
@@ -182,6 +183,12 @@ class App(ctk.CTk):
         self.slider = NeuronSlider(self.bar)
         self.slider.pack(side="left", padx=30)
 
+        self.clear_button = ctk.CTkButton(
+            self.bar, text="clear", width=100, height=44, corner_radius=22,
+            fg_color=ACCENT, hover_color=ACCENT_HOVER,
+            font=ctk.CTkFont("Segoe UI", 15, "bold"), command=self.clear_points)
+        self.clear_button.pack(side="left", padx=(20, 5))
+
         self.save_button = ctk.CTkButton(
             self.bar, text="save", width=100, height=44, corner_radius=22,
             fg_color=ACCENT, hover_color=ACCENT_HOVER,
@@ -318,7 +325,7 @@ class App(ctk.CTk):
         """Draw a point on the canvas and store it in self.points."""
         r = POINT_RADIUS
         item = self.canvas.create_oval(x - r, y - r, x + r, y + r,
-                                       fill=COLORS[label], outline="")
+                                       fill=COLORS[label], outline=POINT_OUTLINE)
         p = Point(x, y, label, item)
         self.points.append(p)
         self.canvas.tag_raise(self.ghost)
@@ -422,3 +429,9 @@ class App(ctk.CTk):
         self.points.clear()
         for x, y, label in rows:
             self.create_point(x, y, label)
+
+    def clear_points(self):
+        """Delete every point from the canvas and from the list."""
+        for p in self.points:
+            self.canvas.delete(p.item)
+        self.points.clear()

@@ -1,12 +1,14 @@
 import math
 import tkinter as tk
+
 import customtkinter as ctk
 from dataclasses import dataclass
 from tkinter import messagebox
 import os
 from datetime import datetime
-from .fake import fake_grid
 from .storage import write_csv, read_csv
+from engine.neuron import train, predict_grid
+
 
 BG = "#ffffff"
 BAR = "#f3f3f8"
@@ -32,11 +34,13 @@ DEBUG = False
 def hex_to_rgb(color):
     return tuple(int(color[i:i + 2], 16) for i in (1, 3, 5))
 
+
 def mix(color_a, color_b, t):
     """Blend two '#rrggbb' colors (t=0 -> a, t=1 -> b)."""
     rgb_a, rgb_b = hex_to_rgb(color_a), hex_to_rgb(color_b)
     r, g, b = (round(ca + (cb - ca) * t) for ca, cb in zip(rgb_a, rgb_b))
     return f"#{r:02x}{g:02x}{b:02x}"
+
 
 def value_to_color(value):
     """0 -> blue, 0.5 -> pale (undecided), 1 -> red."""
@@ -44,6 +48,7 @@ def value_to_color(value):
     if value < 0.5:
         return mix(COLORS[0], PALE, value * 2)
     return mix(PALE, COLORS[1], (value - 0.5) * 2)
+
 
 class ColorSelector(ctk.CTkFrame):
     """Circles used to choose the label (class) of the next point."""
@@ -131,12 +136,14 @@ class Spinner(tk.Canvas):
         self.step += 1
         self.after(100, self._animate)
 
+
 @dataclass
 class Point:
     x: float
     y: float
     label: int
     item: int
+
 
 class App(ctk.CTk):
     def __init__(self):
@@ -232,18 +239,30 @@ class App(ctk.CTk):
         """Color every square from grid[row][col] (values between 0 and 1)."""
         self.last_grid = grid
 
-        # small image: 1 pixel per square, then zoomed to the square size
-        small = tk.PhotoImage(master=self.canvas, width=self.cols, height=self.rows)
-        rows = ["{" + " ".join(value_to_color(v) for v in line) + "}"
-                for line in grid]
+        small = tk.PhotoImage(
+            master=self.canvas,
+            width=self.cols,
+            height=self.rows
+        )
+
+        # invert Y
+        rows = [
+            "{" + " ".join(value_to_color(v) for v in line) + "}"
+            for line in reversed(grid)
+        ]
+
         small.put(" ".join(rows))
         self.image = small.zoom(GRID_SIZE)
 
         if self.image_item is None:
             self.image_item = self.canvas.create_image(
-                self.zone_x, self.zone_y, anchor="nw", image=self.image,
-                tags="prediction")
-            self.canvas.tag_lower(self.image_item)  # under grid lines and points
+                self.zone_x,
+                self.zone_y,
+                anchor="nw",
+                image=self.image,
+                tags="prediction"
+            )
+            self.canvas.tag_lower(self.image_item)
         else:
             self.canvas.itemconfig(self.image_item, image=self.image)
 
@@ -341,13 +360,31 @@ class App(ctk.CTk):
                 cy = self.canvas.winfo_height()
                 inputs.append([point.x / cx, point.y / cy])
                 outputs.append(point.label)
+            
+            self.execute_neurons(inputs, outputs)
 
-            # TODO use neurones
-            print(inputs)
-            print(outputs)
+    def execute_neurons(self, inputs, outputs):
+        # train the neuron
+        weights, bias = train(
+            200,
+            inputs,
+            outputs
+        )
 
-            # self.rows x self.cols values between 0 and 1
-            self.show_prediction(fake_grid(self.rows, self.cols))
+        # generate predictions for the whole visible grid
+        grid = predict_grid(
+            weights,
+            bias,
+            self.rows,
+            self.cols
+        )
+
+        # display the result
+        self.show_prediction(grid)
+        
+        #todo need to be a smooth progress
+        #if self.spinner.running:
+        #    self.after(100, lambda: self.execute_neurons(inputs, outputs))
 
     def save_points(self):
         filename = ctk.filedialog.asksaveasfilename(
@@ -356,7 +393,7 @@ class App(ctk.CTk):
             initialfile=f"points_{int(datetime.now().timestamp())}.csv",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
         )
-        if not filename:   # dialog cancelled
+        if not filename:  # dialog cancelled
             return
         try:
             write_csv(filename, [(p.x, p.y, p.label) for p in self.points])
@@ -368,7 +405,7 @@ class App(ctk.CTk):
             filetypes=[('CSV files', '*.csv'), ('All files', '*.*')],
             initialdir=os.getcwd()
         )
-        if not filename:   # dialog cancelled
+        if not filename:  # dialog cancelled
             return
         try:
             rows = read_csv(filename, COLORS)
